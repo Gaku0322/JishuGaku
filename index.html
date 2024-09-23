@@ -1,0 +1,213 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2024年9月21日の自主学習とテトリス</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        canvas {
+            border: 1px solid #000;
+            background-color: #eee;
+            margin-bottom: 10px;
+        }
+        button {
+            margin: 5px;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>見出しh1</h1>
+    <h2>見出しh2</h2>
+    <h3>見出しh3</h3>
+
+    <p>本文p</p>
+    <a href="https://www.ama-net.ed.jp/school/E37/">リンク a （武庫の里小学校ホームページへ）</a>
+
+    <p>押すと色が変わるボタン</p>
+    <button id="colorButton">色を変える</button>
+
+    <button id="soundButton">音を鳴らす</button>
+    <audio id="sound" src="https://soundeffect-lab.info/sound/button/mp3/cursor1.mp3"></audio>
+
+    <h1>テトリス</h1>
+    <button id="startButton">スタート</button>
+    <canvas id="tetrisCanvas" width="300" height="600"></canvas>
+
+    <div class="controls">
+        <button id="leftButton">左へ移動</button>
+        <button id="rightButton">右へ移動</button>
+        <button id="downButton">下へ移動</button>
+        <button id="rotateButton">回転</button>
+    </div>
+
+    <script>
+        const colors = ['#FF5733', '#33FF57', '#3357FF', '#F0FF33', '#FF33A8'];
+
+        document.getElementById('colorButton').onclick = function() {
+            const randomIndex = Math.floor(Math.random() * colors.length);
+            document.body.style.backgroundColor = colors[randomIndex];
+        };
+
+        document.getElementById('soundButton').onclick = function() {
+            document.getElementById('sound').play();
+        };
+
+        const tetrisCanvas = document.getElementById('tetrisCanvas');
+        const tctx = tetrisCanvas.getContext('2d');
+
+        const rows = 20;
+        const cols = 10;
+        const blockSize = 30;
+
+        const pieceColors = ['red', 'blue', 'green', 'orange', 'purple', 'yellow', 'cyan'];
+        let board = Array.from({ length: rows }, () => Array(cols).fill(0));
+        let currentPiece, currentPosition;
+        let gameInterval;
+
+        function drawBoard() {
+            tctx.clearRect(0, 0, tetrisCanvas.width, tetrisCanvas.height);
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    if (board[r][c] !== 0) {
+                        tctx.fillStyle = pieceColors[board[r][c] - 1];
+                        tctx.fillRect(c * blockSize, r * blockSize, blockSize, blockSize);
+                        tctx.strokeStyle = 'black';
+                        tctx.strokeRect(c * blockSize, r * blockSize, blockSize, blockSize); // 枠を追加
+                    }
+                }
+            }
+        }
+
+        function drawPiece() {
+            currentPiece.shape.forEach(([r, c]) => {
+                tctx.fillStyle = pieceColors[currentPiece.type];
+                tctx.fillRect((currentPosition.x + c) * blockSize, (currentPosition.y + r) * blockSize, blockSize, blockSize);
+                tctx.strokeStyle = 'black';
+                tctx.strokeRect((currentPosition.x + c) * blockSize, (currentPosition.y + r) * blockSize, blockSize, blockSize); // 枠を追加
+            });
+        }
+
+        function createPiece() {
+            const pieces = [
+                { shape: [[0, 0], [0, 1], [1, 0], [1, 1]], type: 0 }, // Square
+                { shape: [[0, 0], [1, 0], [2, 0], [2, 1]], type: 1 }, // L
+                { shape: [[0, 0], [1, 0], [2, 0], [1, 1]], type: 2 }, // T
+                { shape: [[0, 0], [0, 1], [1, 1], [1, 2]], type: 3 }, // Z
+                { shape: [[0, 1], [0, 2], [1, 0], [1, 1]], type: 4 }, // S
+                { shape: [[0, 0], [0, 1], [0, 2], [1, 2]], type: 5 }, // J
+                { shape: [[0, 0], [1, 0], [2, 0], [1, -1]], type: 6 }  // L reverse
+            ];
+            const randomIndex = Math.floor(Math.random() * pieces.length);
+            currentPiece = pieces[randomIndex];
+            currentPosition = { x: 3, y: 0 };
+        }
+
+        function isValidMove(offsetX, offsetY, newShape) {
+            for (let [r, c] of newShape) {
+                const newX = currentPosition.x + c + offsetX;
+                const newY = currentPosition.y + r + offsetY;
+                if (newX < 0 || newX >= cols || newY >= rows || board[newY]?.[newX]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function mergePiece() {
+            currentPiece.shape.forEach(([r, c]) => {
+                board[currentPosition.y + r][currentPosition.x + c] = currentPiece.type + 1;
+            });
+        }
+
+        function clearLines() {
+            for (let r = rows - 1; r >= 0; r--) {
+                if (board[r].every(cell => cell !== 0)) {
+                    board.splice(r, 1);
+                    board.unshift(Array(cols).fill(0));
+                }
+            }
+        }
+
+        function drop() {
+            if (isValidMove(0, 1, currentPiece.shape)) {
+                currentPosition.y++;
+            } else {
+                mergePiece();
+                clearLines();
+                createPiece();
+                if (!isValidMove(0, 0, currentPiece.shape)) {
+                    alert("ゲームオーバー");
+                    resetGame();
+                }
+            }
+        }
+
+        function rotatePiece() {
+            const newShape = currentPiece.shape.map(([r, c]) => [-c, r]);
+            if (isValidMove(0, 0, newShape)) {
+                currentPiece.shape = newShape;
+            }
+        }
+
+        function movePiece(direction) {
+            if (isValidMove(direction, 0, currentPiece.shape)) {
+                currentPosition.x += direction;
+            }
+        }
+
+        function update() {
+            drop();
+            drawBoard();
+            drawPiece();
+        }
+
+        function resetGame() {
+            board = Array.from({ length: rows }, () => Array(cols).fill(0));
+            clearInterval(gameInterval);
+        }
+
+        document.getElementById('startButton').onclick = function() {
+            resetGame();
+            createPiece();
+            gameInterval = setInterval(update, 1000);
+        };
+
+        document.getElementById('leftButton').onclick = function() {
+            movePiece(-1);
+            drawBoard();
+            drawPiece();
+        };
+
+        document.getElementById('rightButton').onclick = function() {
+            movePiece(1);
+            drawBoard();
+            drawPiece();
+        };
+
+        document.getElementById('downButton').onclick = function() {
+            drop();
+            drawBoard();
+            drawPiece();
+        };
+
+        document.getElementById('rotateButton').onclick = function() {
+            rotatePiece();
+            drawBoard();
+            drawPiece();
+        };
+
+    </script>
+</body>
+</html>
